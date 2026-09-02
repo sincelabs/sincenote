@@ -20,8 +20,8 @@
 # Private package? Add the GHCR credentials under Coolify → Server → Docker
 # Registries, or make the package public in the GitHub UI.
 #
-# `environment` uses mapping syntax on purpose — see the note in the root
-# docker-compose.yaml before changing it.
+# `environment` uses mapping syntax and bare `${VAR:?}` on purpose — see the
+# notes at the top of the root docker-compose.yaml before changing either.
 
 name: affine
 
@@ -40,10 +40,10 @@ services:
       AFFINE_SERVER_HOST: ${AFFINE_SERVER_HOST:-}
       COOLIFY_URL: ${COOLIFY_URL:-}
       COOLIFY_FQDN: ${COOLIFY_FQDN:-}
-      DATABASE_URL: postgresql://${POSTGRES_USER:-affine}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in Coolify before deploying}@postgres:5432/${POSTGRES_DB:-affine}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-affine}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-affine}
       REDIS_SERVER_HOST: redis
       REDIS_SERVER_PORT: '6379'
-      REDIS_SERVER_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in Coolify before deploying}
+      REDIS_SERVER_PASSWORD: ${REDIS_PASSWORD:?}
       NODE_OPTIONS: --max-old-space-size=${AFFINE_HEAP_MB:-2048}
       MAILER_HOST: ${MAILER_HOST:-}
       MAILER_PORT: ${MAILER_PORT:-465}
@@ -72,7 +72,7 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-affine}
       POSTGRES_DB: ${POSTGRES_DB:-affine}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in Coolify before deploying}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
       POSTGRES_INITDB_ARGS: --data-checksums
     volumes:
       - affine-postgres:/var/lib/postgresql/data
@@ -86,9 +86,9 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: redis-server --requirepass ${REDIS_PASSWORD:?set REDIS_PASSWORD in Coolify before deploying} --appendonly yes
+    command: redis-server --requirepass ${REDIS_PASSWORD:?} --appendonly yes
     environment:
-      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in Coolify before deploying}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?}
     volumes:
       - affine-redis:/data
     healthcheck:

@@ -37,8 +37,8 @@ Coolify box has less than 8 GB of RAM, which most do.
    `https://note.example.com:3010`. Coolify routes the domain to that container
    port; without the port it has nothing to bind to.
 5. Environment Variables → add **`POSTGRES_PASSWORD`** and **`REDIS_PASSWORD`**.
-   These are mandatory. Generate them with `openssl rand -hex 24`. The deploy
-   stops with a message naming the variable if either is missing.
+   Generate them with `openssl rand -hex 24`. Both are declared `${VAR:?}`, so
+   Coolify flags them in the UI and refuses to deploy while either is empty.
 6. Add the optional settings you want (SMTP especially — see below).
 7. **Deploy**. Watch the build logs; the Rust stage looks stalled but is not.
 
@@ -52,6 +52,11 @@ Coolify's `SERVICE_FQDN_*` / `SERVICE_PASSWORD_*` magic variables belong to the
 **Service** resource type. Under the **Docker Compose build pack** they are not
 generated, so they expand to empty strings — which would mean a Postgres with no
 password and a blank public URL. Hence the explicit variables above.
+
+One more Coolify-ism worth knowing: in `${VAR:?default}` Coolify reads the text
+after `:?` as a value to **prefill**, not as an error message. That is why the
+required variables here are written bare — `${POSTGRES_PASSWORD:?}`. Adding a
+friendly message would hand the database that message as its password.
 
 For the same reason, every `environment:` block here uses mapping syntax
 (`KEY: value`) rather than the list form (`- KEY=value`). Coolify rewrites the

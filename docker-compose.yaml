@@ -25,6 +25,11 @@
 #     Service-resource feature; under the Docker Compose *build pack* they are
 #     not generated, so they would silently expand to empty strings — an
 #     unauthenticated database and a blank public URL.
+#   * `${VAR:?}` marks a variable required. Coolify parses that, flags the
+#     field in its UI and blocks the deploy while it is empty. Leave the part
+#     after `:?` EMPTY — Coolify reads it as a prefill default, not as an error
+#     message, so `${POSTGRES_PASSWORD:?pick a password}` would hand the
+#     database the literal password "pick a password".
 
 name: affine
 
@@ -54,10 +59,10 @@ services:
       AFFINE_SERVER_HOST: ${AFFINE_SERVER_HOST:-}
       COOLIFY_URL: ${COOLIFY_URL:-}
       COOLIFY_FQDN: ${COOLIFY_FQDN:-}
-      DATABASE_URL: postgresql://${POSTGRES_USER:-affine}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in Coolify before deploying}@postgres:5432/${POSTGRES_DB:-affine}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-affine}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-affine}
       REDIS_SERVER_HOST: redis
       REDIS_SERVER_PORT: '6379'
-      REDIS_SERVER_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in Coolify before deploying}
+      REDIS_SERVER_PASSWORD: ${REDIS_PASSWORD:?}
       NODE_OPTIONS: --max-old-space-size=${AFFINE_HEAP_MB:-2048}
       # SMTP — required for invites, password resets and email sign-in.
       MAILER_HOST: ${MAILER_HOST:-}
@@ -91,7 +96,7 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-affine}
       POSTGRES_DB: ${POSTGRES_DB:-affine}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in Coolify before deploying}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
       POSTGRES_INITDB_ARGS: --data-checksums
     volumes:
       - affine-postgres:/var/lib/postgresql/data
@@ -105,9 +110,9 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: redis-server --requirepass ${REDIS_PASSWORD:?set REDIS_PASSWORD in Coolify before deploying} --appendonly yes
+    command: redis-server --requirepass ${REDIS_PASSWORD:?} --appendonly yes
     environment:
-      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in Coolify before deploying}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?}
     volumes:
       - affine-redis:/data
     healthcheck:
