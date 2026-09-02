@@ -39,6 +39,27 @@ if [ -z "${AFFINE_SERVER_EXTERNAL_URL:-}" ]; then
   echo "[affine] AFFINE_SERVER_EXTERNAL_URL to your public URL." >&2
 fi
 
+# AFFiNE and Prisma both want a single connection URL, but a password is not
+# URL-safe text: `/`, `?` and `#` end the authority, `@` and `:` move its
+# boundaries. Splicing one into a URL by hand mis-parses — a `/` in the password
+# makes Prisma read the rest as the port and report "invalid port number".
+# So assemble the URL here and percent-encode every part that came from a human.
+if [ -z "${DATABASE_URL:-}" ]; then
+  DATABASE_URL="$(node -e '
+    const enc = encodeURIComponent;
+    const user = enc(process.env.POSTGRES_USER || "affine");
+    const password = enc(process.env.POSTGRES_PASSWORD || "");
+    const host = process.env.POSTGRES_HOST || "postgres";
+    const port = process.env.POSTGRES_PORT || "5432";
+    const database = enc(process.env.POSTGRES_DB || "affine");
+    process.stdout.write("postgresql://" + user + ":" + password + "@" + host + ":" + port + "/" + database);
+  ')"
+  export DATABASE_URL
+  echo "[affine] database: ${POSTGRES_USER:-affine}@${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-affine}"
+else
+  echo "[affine] database: using the DATABASE_URL supplied in the environment"
+fi
+
 if [ "${AFFINE_SKIP_MIGRATION:-false}" != "true" ]; then
   # Generates ~/.affine/config/private.key on first boot, then applies the
   # Prisma schema and the data migrations.
