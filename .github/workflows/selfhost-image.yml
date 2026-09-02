@@ -1,7 +1,7 @@
 name: Self-host Image
 
 # Builds the AFFiNE self-host image from THIS repository's source and publishes
-# it to ghcr.io/<owner>/affine, so a Coolify deploy is a pull rather than a
+# it to ghcr.io/<owner>/<repo>, so a Coolify deploy is a pull rather than a
 # 30-60 minute compile on the app server.
 #
 # Pair it with .docker/coolify/compose.registry.yaml.

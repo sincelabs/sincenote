@@ -3,7 +3,7 @@
 # Identical to the root docker-compose.yaml except that the server image is
 # pulled instead of compiled on the deploy host. The image is still built from
 # THIS repository — .github/workflows/selfhost-image.yml publishes it to
-# ghcr.io/<owner>/affine on every push to the release branch.
+# ghcr.io/<owner>/<repo> on demand or on a `selfhost-v*` tag.
 #
 # Use this when the Coolify server is too small to run the full build
 # (the source build wants ~8 GB of RAM). Deploys become a pull instead of a
@@ -12,35 +12,45 @@
 # Coolify setup (Docker Compose build pack):
 #   Base Directory:          /
 #   Docker Compose Location: /.docker/coolify/compose.registry.yaml
+#   Domain (affine service): https://your.domain:3010
+#
+# REQUIRED environment variables: POSTGRES_PASSWORD, REDIS_PASSWORD, and
+# AFFINE_IMAGE if your image is not at the default path below.
 #
 # Private package? Add the GHCR credentials under Coolify → Server → Docker
 # Registries, or make the package public in the GitHub UI.
+#
+# `environment` uses mapping syntax on purpose — see the note in the root
+# docker-compose.yaml before changing it.
 
 name: affine
 
 services:
   affine:
-    image: ${AFFINE_IMAGE:-ghcr.io/sincelabs/affine:latest}
+    image: ${AFFINE_IMAGE:-ghcr.io/sincelabs/sincenote:latest}
     pull_policy: always
     restart: unless-stopped
+    expose:
+      - '3010'
     environment:
-      - SERVICE_FQDN_AFFINE_3010
-      - AFFINE_SERVER_EXTERNAL_URL=${SERVICE_URL_AFFINE}
-      - AFFINE_SERVER_HOST=${SERVICE_FQDN_AFFINE}
-      - AFFINE_SERVER_HTTPS=${AFFINE_SERVER_HTTPS:-true}
-      - AFFINE_SERVER_PORT=3010
-      - AFFINE_SERVER_SUB_PATH=${AFFINE_SERVER_SUB_PATH:-}
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-affine}:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/${POSTGRES_DB:-affine}
-      - REDIS_SERVER_HOST=redis
-      - REDIS_SERVER_PORT=6379
-      - REDIS_SERVER_PASSWORD=${SERVICE_PASSWORD_REDIS}
-      - NODE_OPTIONS=--max-old-space-size=${AFFINE_HEAP_MB:-2048}
-      - MAILER_HOST=${MAILER_HOST:-}
-      - MAILER_PORT=${MAILER_PORT:-465}
-      - MAILER_USER=${MAILER_USER:-}
-      - MAILER_PASSWORD=${MAILER_PASSWORD:-}
-      - MAILER_SENDER=${MAILER_SENDER:-AFFiNE Self Hosted <noreply@example.com>}
-      - MAILER_IGNORE_TLS=${MAILER_IGNORE_TLS:-false}
+      AFFINE_SERVER_PORT: '3010'
+      AFFINE_SERVER_HTTPS: ${AFFINE_SERVER_HTTPS:-true}
+      AFFINE_SERVER_SUB_PATH: ${AFFINE_SERVER_SUB_PATH:-}
+      AFFINE_SERVER_EXTERNAL_URL: ${AFFINE_SERVER_EXTERNAL_URL:-}
+      AFFINE_SERVER_HOST: ${AFFINE_SERVER_HOST:-}
+      COOLIFY_URL: ${COOLIFY_URL:-}
+      COOLIFY_FQDN: ${COOLIFY_FQDN:-}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-affine}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in Coolify before deploying}@postgres:5432/${POSTGRES_DB:-affine}
+      REDIS_SERVER_HOST: redis
+      REDIS_SERVER_PORT: '6379'
+      REDIS_SERVER_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in Coolify before deploying}
+      NODE_OPTIONS: --max-old-space-size=${AFFINE_HEAP_MB:-2048}
+      MAILER_HOST: ${MAILER_HOST:-}
+      MAILER_PORT: ${MAILER_PORT:-465}
+      MAILER_USER: ${MAILER_USER:-}
+      MAILER_PASSWORD: ${MAILER_PASSWORD:-}
+      MAILER_SENDER: ${MAILER_SENDER:-AFFiNE Self Hosted <noreply@example.com>}
+      MAILER_IGNORE_TLS: ${MAILER_IGNORE_TLS:-false}
     volumes:
       - affine-storage:/root/.affine/storage
       - affine-config:/root/.affine/config
@@ -50,11 +60,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test:
-        - CMD
-        - node
-        - -e
-        - "fetch('http://127.0.0.1:3010/info').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
+      test: node -e "fetch('http://127.0.0.1:3010/info').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
       interval: 15s
       timeout: 10s
       retries: 10
@@ -64,16 +70,14 @@ services:
     image: pgvector/pgvector:pg16
     restart: unless-stopped
     environment:
-      - POSTGRES_USER=${POSTGRES_USER:-affine}
-      - POSTGRES_DB=${POSTGRES_DB:-affine}
-      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
-      - POSTGRES_INITDB_ARGS=--data-checksums
+      POSTGRES_USER: ${POSTGRES_USER:-affine}
+      POSTGRES_DB: ${POSTGRES_DB:-affine}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in Coolify before deploying}
+      POSTGRES_INITDB_ARGS: --data-checksums
     volumes:
       - affine-postgres:/var/lib/postgresql/data
     healthcheck:
-      test:
-        - CMD-SHELL
-        - pg_isready -U ${POSTGRES_USER:-affine} -d ${POSTGRES_DB:-affine}
+      test: pg_isready -U ${POSTGRES_USER:-affine} -d ${POSTGRES_DB:-affine}
       interval: 10s
       timeout: 5s
       retries: 10
@@ -82,20 +86,13 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command:
-      - redis-server
-      - --requirepass
-      - ${SERVICE_PASSWORD_REDIS}
-      - --appendonly
-      - 'yes'
+    command: redis-server --requirepass ${REDIS_PASSWORD:?set REDIS_PASSWORD in Coolify before deploying} --appendonly yes
     environment:
-      - REDIS_PASSWORD=${SERVICE_PASSWORD_REDIS}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in Coolify before deploying}
     volumes:
       - affine-redis:/data
     healthcheck:
-      test:
-        - CMD-SHELL
-        - redis-cli -a "$$REDIS_PASSWORD" ping | grep -q PONG
+      test: redis-cli -a "$$REDIS_PASSWORD" ping | grep -q PONG
       interval: 10s
       timeout: 5s
       retries: 10

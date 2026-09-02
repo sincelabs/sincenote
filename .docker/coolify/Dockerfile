@@ -103,8 +103,9 @@ FROM base AS builder
 # `stable` | `beta` | `internal` | `canary`
 ARG BUILD_TYPE=stable
 # Without a .git directory the html plugin cannot resolve a commit; Coolify
-# exposes SOURCE_COMMIT, GitHub Actions exposes GITHUB_SHA.
-ARG GIT_SHA=0000000000000000000000000000000000000000
+# exposes SOURCE_COMMIT, GitHub Actions exposes GITHUB_SHA. It can also arrive
+# empty — Coolify has a toggle for it — which the build step substitutes for.
+ARG GIT_SHA=
 ARG NODE_HEAP_MB=6144
 
 ENV BUILD_TYPE=${BUILD_TYPE} \
@@ -116,7 +117,10 @@ COPY . .
 RUN --mount=type=cache,target=/yarn-cache,sharing=locked \
     yarn install --immutable --inline-builds
 
-RUN yarn affine @affine/web build \
+# An empty GITHUB_SHA sends the html plugin looking for a git repository that
+# the build context does not carry, so give it a placeholder instead.
+RUN export GITHUB_SHA="${GITHUB_SHA:-0000000000000000000000000000000000000000}" \
+  && yarn affine @affine/web build \
   && yarn affine @affine/admin build \
   && yarn affine @affine/mobile build
 
