@@ -1,0 +1,119 @@
+# AFFiNE — Coolify deployment, built from this repository's source.
+#
+# The `affine` service is compiled from the checkout Coolify pulls, using
+# .docker/coolify/Dockerfile — it never pulls ghcr.io/toeverything/affine.
+#
+# Coolify setup (Docker Compose build pack):
+#   Base Directory:          /
+#   Docker Compose Location: /docker-compose.yaml
+#
+# A cold build needs roughly 8 GB of RAM and 30-60 minutes. If your server is
+# smaller than that, build the image in CI instead — see
+# .github/workflows/selfhost-image.yml and .docker/coolify/compose.registry.yaml.
+#
+# Everything is documented in .docker/coolify/README.md.
+
+name: affine
+
+services:
+  affine:
+    build:
+      context: .
+      dockerfile: .docker/coolify/Dockerfile
+      args:
+        BUILD_TYPE: ${BUILD_TYPE:-stable}
+        # Coolify exports the commit it checked out; the frontend build stamps
+        # it into the HTML and has no .git directory to read it from.
+        GIT_SHA: ${SOURCE_COMMIT:-0000000000000000000000000000000000000000}
+        NODE_HEAP_MB: ${NODE_HEAP_MB:-6144}
+    restart: unless-stopped
+    environment:
+      # Magic variable: Coolify generates a domain and routes it to port 3010.
+      - SERVICE_FQDN_AFFINE_3010
+      # SERVICE_URL_* carries the scheme, SERVICE_FQDN_* is the bare hostname.
+      - AFFINE_SERVER_EXTERNAL_URL=${SERVICE_URL_AFFINE}
+      - AFFINE_SERVER_HOST=${SERVICE_FQDN_AFFINE}
+      - AFFINE_SERVER_HTTPS=${AFFINE_SERVER_HTTPS:-true}
+      - AFFINE_SERVER_PORT=3010
+      - AFFINE_SERVER_SUB_PATH=${AFFINE_SERVER_SUB_PATH:-}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-affine}:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/${POSTGRES_DB:-affine}
+      - REDIS_SERVER_HOST=redis
+      - REDIS_SERVER_PORT=6379
+      - REDIS_SERVER_PASSWORD=${SERVICE_PASSWORD_REDIS}
+      - NODE_OPTIONS=--max-old-space-size=${AFFINE_HEAP_MB:-2048}
+      # SMTP — required for invites, password resets and email sign-in.
+      - MAILER_HOST=${MAILER_HOST:-}
+      - MAILER_PORT=${MAILER_PORT:-465}
+      - MAILER_USER=${MAILER_USER:-}
+      - MAILER_PASSWORD=${MAILER_PASSWORD:-}
+      - MAILER_SENDER=${MAILER_SENDER:-AFFiNE Self Hosted <noreply@example.com>}
+      - MAILER_IGNORE_TLS=${MAILER_IGNORE_TLS:-false}
+    volumes:
+      # Uploaded blobs. Losing this loses every image and attachment.
+      - affine-storage:/root/.affine/storage
+      # Holds the generated private.key — it signs sessions, so it must be
+      # stable across redeploys or everyone gets logged out.
+      - affine-config:/root/.affine/config
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3010/info').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+
+  postgres:
+    # pgvector is required: AFFiNE stores embeddings for search and AI features.
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-affine}
+      - POSTGRES_DB=${POSTGRES_DB:-affine}
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
+      - POSTGRES_INITDB_ARGS=--data-checksums
+    volumes:
+      - affine-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${POSTGRES_USER:-affine} -d ${POSTGRES_DB:-affine}
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --requirepass
+      - ${SERVICE_PASSWORD_REDIS}
+      - --appendonly
+      - 'yes'
+    volumes:
+      - affine-redis:/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - redis-cli -a "$$REDIS_PASSWORD" ping | grep -q PONG
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    environment:
+      - REDIS_PASSWORD=${SERVICE_PASSWORD_REDIS}
+
+volumes:
+  affine-storage:
+  affine-config:
+  affine-postgres:
+  affine-redis:
