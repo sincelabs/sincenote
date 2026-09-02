@@ -6,16 +6,37 @@
 # `node ./scripts/self-host-predeploy.js` as a separate one-shot job instead.
 set -eu
 
-# AFFINE_SERVER_HOST is what the server puts into invite links, OAuth redirects
-# and mail. Fall back to the URL Coolify generated for the service, then to the
-# container's own hostname, so a misconfigured deploy still boots.
+# Coolify hands multiple domains as a comma-separated list; the first one is the
+# canonical domain shown in the UI.
+first_of_list() {
+  echo "${1%%,*}"
+}
+
+# AFFINE_SERVER_EXTERNAL_URL is what the server puts into invite links, OAuth
+# redirects and mail. Prefer explicit config, then the domain Coolify injects.
+if [ -z "${AFFINE_SERVER_EXTERNAL_URL:-}" ] && [ -n "${COOLIFY_URL:-}" ]; then
+  AFFINE_SERVER_EXTERNAL_URL="$(first_of_list "${COOLIFY_URL}")"
+  export AFFINE_SERVER_EXTERNAL_URL
+fi
+
 if [ -z "${AFFINE_SERVER_HOST:-}" ]; then
-  if [ -n "${COOLIFY_FQDN:-}" ]; then
-    AFFINE_SERVER_HOST="${COOLIFY_FQDN}"
+  if [ -n "${AFFINE_SERVER_EXTERNAL_URL:-}" ]; then
+    # Strip the scheme, then any path and any :port.
+    host="${AFFINE_SERVER_EXTERNAL_URL#*://}"
+    host="${host%%/*}"
+    AFFINE_SERVER_HOST="${host%%:*}"
+  elif [ -n "${COOLIFY_FQDN:-}" ]; then
+    AFFINE_SERVER_HOST="$(first_of_list "${COOLIFY_FQDN}")"
   else
     AFFINE_SERVER_HOST="localhost"
   fi
   export AFFINE_SERVER_HOST
+fi
+
+if [ -z "${AFFINE_SERVER_EXTERNAL_URL:-}" ]; then
+  echo "[affine] warning: no external URL configured. Invite links and OAuth" >&2
+  echo "[affine] redirects will point at ${AFFINE_SERVER_HOST}. Set" >&2
+  echo "[affine] AFFINE_SERVER_EXTERNAL_URL to your public URL." >&2
 fi
 
 if [ "${AFFINE_SKIP_MIGRATION:-false}" != "true" ]; then
@@ -27,5 +48,5 @@ else
   echo "[affine] AFFINE_SKIP_MIGRATION=true, skipping predeploy"
 fi
 
-echo "[affine] starting server on ${AFFINE_SERVER_HOST}:${AFFINE_SERVER_PORT:-3010}"
+echo "[affine] starting server for ${AFFINE_SERVER_EXTERNAL_URL:-${AFFINE_SERVER_HOST}} on port ${AFFINE_SERVER_PORT:-3010}"
 exec "$@"
