@@ -171,6 +171,25 @@ RUN AFFINE_DOCKER_CLEAN=1 \
     TARGETVARIANT="${TARGETVARIANT}" \
     node ./scripts/docker-clean.mjs
 
+# docker-clean keeps only `server-native.<arch>.node` and deletes the unsuffixed
+# `server-native.node` along with the other architectures. The loader in
+# packages/backend/native/index.js probes the unsuffixed name first and falls
+# back to the arch-suffixed one inside a try/catch, so that would still work —
+# but only if the try/catch survives bundling and minification intact. Restore
+# the name the loader reaches for first so the fallback never has to fire, and
+# fail the build loudly if no addon survived at all.
+RUN set -eu; \
+    if [ ! -f dist/server-native.node ]; then \
+      for candidate in dist/server-native.*.node; do \
+        [ -f "$candidate" ] || continue; \
+        ln "$candidate" dist/server-native.node; \
+        break; \
+      done; \
+    fi; \
+    test -f dist/server-native.node \
+      || { echo "no server-native addon survived docker-clean" >&2; exit 1; }; \
+    ls -l dist/server-native*.node
+
 # ---------------------------------------------------------------------------
 # runtime
 # ---------------------------------------------------------------------------

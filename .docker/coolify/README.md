@@ -39,6 +39,7 @@ Coolify box has less than 8 GB of RAM, which most do.
 5. Environment Variables → add **`POSTGRES_PASSWORD`** and **`REDIS_PASSWORD`**.
    Generate them with `openssl rand -hex 24`. Both are declared `${VAR:?}`, so
    Coolify flags them in the UI and refuses to deploy while either is empty.
+   Any characters are safe — see *Passwords and the connection URL* below.
 6. Add the optional settings you want (SMTP especially — see below).
 7. **Deploy**. Watch the build logs; the Rust stage looks stalled but is not.
 
@@ -77,6 +78,24 @@ mapping syntax.
    The same domain and required-variable rules apply.
 5. Pin a specific tag with `AFFINE_IMAGE=ghcr.io/<owner>/<repo>:sha-<commit>`
    when you want reproducible rollbacks.
+
+### Passwords and the connection URL
+
+The Postgres password reaches the server as `POSTGRES_PASSWORD`, and the
+entrypoint builds `DATABASE_URL` from the `POSTGRES_*` parts with each one
+percent-encoded. That is not decoration: a password is arbitrary text, a URL is
+not. `/`, `?` and `#` terminate a URL's authority and `@` and `:` move its
+boundaries, so splicing a raw password into `postgresql://user:PASSWORD@host/db`
+mis-parses. `/` is the memorable one — Prisma reads what follows as the port and
+fails with `P1013: invalid port number in database URL`, which never mentions
+the password.
+
+Redis is handed its password through the environment and reads it inside the
+container, so spaces and shell metacharacters are safe there too.
+
+To use an external database, set `DATABASE_URL` directly. The entrypoint then
+uses it verbatim and ignores the `POSTGRES_*` parts — percent-encode the
+password yourself.
 
 ## First boot
 
@@ -152,6 +171,10 @@ Environment Variables tab.
 **Server starts, page loads blank.** Almost always `AFFINE_SERVER_EXTERNAL_URL`
 disagreeing with the domain you opened. The startup log prints what it resolved;
 compare that with the URL in your address bar.
+
+**`P1013: invalid port number in database URL`.** A password containing `/`
+spliced into a connection URL. Fixed — the entrypoint percent-encodes it now.
+If you set `DATABASE_URL` yourself, encode the password in it.
 
 **`prisma migrate deploy` fails on boot.** Check the `affine` container logs.
 The predeploy script rolls back one known-bad historical migration before
