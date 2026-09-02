@@ -180,6 +180,12 @@ Begin with Docker to deploy your own feature-rich, unrestricted version of AFFiN
 
 [![Run on Sealos](https://sealos.io/Deploy-on-Sealos.svg)](https://sealos.io/products/app-store/affine)
 
+### Coolify
+
+This fork ships a Coolify-ready Docker Compose stack that builds AFFiNE from
+this repository's source rather than the published image. See
+[`.docker/coolify/README.md`](./.docker/coolify/README.md).
+
 ## Feature Request
 
 For feature requests, please see [discussions](https://github.com/toeverything/AFFiNE/discussions/categories/ideas).
