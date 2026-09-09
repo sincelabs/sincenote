@@ -15,7 +15,7 @@ permissions:
 jobs:
   check-pull-request-title:
     name: Check pull request title
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, default]
     if: ${{ github.event.action != 'edited' || github.event.changes.title != null }}
     steps:
       - uses: actions/checkout@v7

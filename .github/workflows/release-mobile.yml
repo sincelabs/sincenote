@@ -23,7 +23,7 @@ env:
 
 jobs:
   build-ios-web:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, default]
     environment: ${{ inputs.build-type }}
     steps:
       - uses: actions/checkout@v7
@@ -52,7 +52,7 @@ jobs:
           path: packages/frontend/apps/ios/dist
 
   build-android-web:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, default]
     steps:
       - uses: actions/checkout@v7
       - name: Setup Version
@@ -146,7 +146,7 @@ jobs:
           APPLE_STORE_CONNECT_API_KEY: ${{ secrets.APPLE_STORE_CONNECT_API_KEY }}
 
   android:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, default]
     permissions:
       id-token: 'write'
     needs:
