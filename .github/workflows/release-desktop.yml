@@ -50,7 +50,7 @@ env:
 jobs:
   before-make:
     if: ${{ inputs.desktop_macos || inputs.desktop_windows || inputs.desktop_linux }}
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, default]
     environment: ${{ inputs.build-type }}
     steps:
       - uses: actions/checkout@v7
@@ -80,7 +80,7 @@ jobs:
 
   windows-signer-gate:
     if: ${{ inputs.desktop_windows }}
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, default]
     outputs:
       signer_available: ${{ steps.check.outputs.signer_available }}
     steps:
@@ -373,7 +373,7 @@ jobs:
         make-distribution-linux,
         build-and-sign-windows,
       ]
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, default]
 
     steps:
       - uses: actions/checkout@v7

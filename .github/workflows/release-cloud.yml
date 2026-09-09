@@ -33,7 +33,7 @@ jobs:
     environment: ${{ inputs.build-type }}
     needs:
       - build-images
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, default]
     steps:
       - uses: actions/checkout@v7
       - name: Deploy to ${{ inputs.build-type }}
